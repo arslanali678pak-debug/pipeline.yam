@@ -1,0 +1,63 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: node-pipeline
+spec:
+  description: >-
+    CI pipeline for a Node.js app: clone the repo, install dependencies
+    with npm, run the Jasmine tests, then build the app.
+  params:
+    - name: repo-url
+      type: string
+      description: Git repository URL of the application
+    - name: revision
+      type: string
+      description: Git branch, tag or commit to build
+      default: main
+  workspaces:
+    - name: shared-workspace
+      description: Workspace shared by every task in the pipeline
+  tasks:
+    - name: clone
+      taskRef:
+        name: git-clone
+      params:
+        - name: url
+          value: $(params.repo-url)
+        - name: revision
+          value: $(params.revision)
+      workspaces:
+        - workspace: shared-workspace
+          subPath: source
+    - name: npminstall
+      taskRef:
+        name: npm
+      runAfter: [clone]
+      params:
+        - name: ARGS
+          value: ["install"]
+        - name: PATH_CONTEXT
+          value: source
+      workspaces:
+        - workspace: shared-workspace
+    - name: tests
+      taskRef:
+        name: jasmine
+      runAfter: [npminstall]
+      params:
+        - name: PATH_CONTEXT
+          value: source
+      workspaces:
+        - workspace: shared-workspace
+    - name: build
+      taskRef:
+        name: npm
+      runAfter: [tests]
+      params:
+        - name: ARGS
+          value: ["run", "build"]
+        - name: PATH_CONTEXT
+          value: source
+      workspaces:
+        - workspace: shared-workspace
